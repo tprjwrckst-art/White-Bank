@@ -1,1 +1,8 @@
-New File
+apps/admin/.gitkeep
+packages/ui/.gitkeep
+packages/types/.gitkeep
+packages/utils/.gitkeep
+services/api/.gitkeep
+infrastructure/.gitkeep
+docs/.gitkeep
+scripts/.gitkeep
