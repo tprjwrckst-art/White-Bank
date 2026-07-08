@@ -20,10 +20,6 @@
     "format": "prettier --write .",
     "clean": "turbo run clean"
   },
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
   "devDependencies": {
     "@types/node": "^22.16.0",
     "prettier": "^3.6.2",
