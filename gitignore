@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+.next/
+dist/
+build/
+coverage/
+out/
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE files
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Turbo
+.turbo/
+
+# Prisma
+prisma/dev.db
+
+# Temporary files
+tmp/
+temp/
+
+# Cache
+.cache/
+.eslintcache
+
+# Generated files
+*.tsbuildinfo
