@@ -1,0 +1,10 @@
+apps/
+└── web/
+    ├── app/
+    ├── components/
+    ├── lib/
+    ├── public/
+    ├── styles/
+    ├── next.config.ts
+    ├── package.json
+    └── tsconfig.json
