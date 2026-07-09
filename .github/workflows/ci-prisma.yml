@@ -1,0 +1,55 @@
+name: CI — Prisma & Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: whitebank
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: whitebank
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U whitebank -d whitebank"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Wait for Postgres
+        run: |
+          for i in {1..30}; do
+            pg_isready -h localhost -p 5432 -U whitebank && break || sleep 1
+          done
+        env:
+          PGPASSWORD: password
+
+      - name: Install API dependencies
+        run: npm ci --prefix services/api
+
+      - name: Generate Prisma client
+        run: npx --prefix services/api prisma generate --schema=../../prisma/schema.prisma
+
+      - name: Apply Prisma migrations (deploy)
+        env:
+          DATABASE_URL: postgres://whitebank:password@localhost:5432/whitebank?schema=public
+        run: npx --prefix services/api prisma migrate deploy --schema=../../prisma/schema.prisma
+
+      - name: Build API
+        run: npm --prefix services/api run build
