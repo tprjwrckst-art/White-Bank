@@ -1,5 +1,8 @@
 # 🏦 White Bank
 
+[![CI — Prisma](https://github.com/tprjwrckst-art/White-Bank/actions/workflows/ci-prisma.yml/badge.svg?branch=main)](https://github.com/tprjwrckst-art/White-Bank/actions/workflows/ci-prisma.yml)
+[![CI — Tests](https://github.com/tprjwrckst-art/White-Bank/actions/workflows/ci-tests.yml/badge.svg?branch=main)](https://github.com/tprjwrckst-art/White-Bank/actions/workflows/ci-tests.yml)
+
 White Bank is a modern digital banking platform built with a secure, scalable architecture.
 
 > **Status:** 🚧 Under Development
