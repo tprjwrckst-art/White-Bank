@@ -1,0 +1,50 @@
+name: CI — Lint & Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: whitebank
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: whitebank
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U whitebank -d whitebank"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Wait for Postgres
+        run: |
+          for i in {1..30}; do
+            pg_isready -h localhost -p 5432 -U whitebank && break || sleep 1
+          done
+        env:
+          PGPASSWORD: password
+
+      - name: Install API dependencies
+        run: npm ci --prefix services/api
+
+      - name: Run linter (if present)
+        run: npm run lint --prefix services/api --if-present
+
+      - name: Run tests (if present)
+        run: npm run test --prefix services/api --if-present
