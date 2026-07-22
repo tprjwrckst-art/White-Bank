@@ -7,30 +7,380 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ============================================
+// USER & AUTHENTICATION
+// ============================================
+
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  accounts  Account[]
+  id                String            @id @default(cuid())
+  email             String            @unique
+  password          String            // hashed password
+  name              String
+  phone             String?           @unique
+  dateOfBirth       DateTime?
+  address           String?
+  city              String?
+  state             String?
+  zipCode           String?
+  country           String?
+  kycStatus         KYCStatus         @default(PENDING)
+  kycVerifiedAt     DateTime?
+  role              UserRole          @default(CUSTOMER)
+  status            UserStatus        @default(ACTIVE)
+  lastLoginAt       DateTime?
+  emailVerified     Boolean           @default(false)
+  emailVerifiedAt   DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  // Relations
+  accounts          Account[]
+  cards             Card[]
+  transactions      Transaction[]
+  transfers         Transfer[]
+  transfersReceived Transfer[]        @relation("ReceiverRelation")
+  notifications     Notification[]
+  loginSessions     LoginSession[]
+  activityLogs      ActivityLog[]
+  kycDocuments      KYCDocument[]
+
+  @@index([email])
+  @@index([phone])
 }
+
+model LoginSession {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token         String    @unique
+  ipAddress     String?
+  userAgent     String?
+  expiresAt     DateTime
+  createdAt     DateTime  @default(now())
+
+  @@index([userId])
+  @@index([token])
+}
+
+model KYCDocument {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentType  String    // PASSPORT, DRIVER_LICENSE, ID_CARD, VOTER_ID
+  documentUrl   String
+  verificationStatus String @default("PENDING") // PENDING, APPROVED, REJECTED
+  uploadedAt    DateTime  @default(now())
+  verifiedAt    DateTime?
+  rejectionReason String?
+
+  @@index([userId])
+}
+
+// ============================================
+// ACCOUNTS & BALANCES
+// ============================================
 
 model Account {
-  id          String   @id @default(cuid())
-  user        User     @relation(fields: [userId], references: [id])
-  userId      String
-  balance     Float    @default(0)
-  currency    String   @default("USD")
-  createdAt   DateTime @default(now())
-  transactions Transaction[]
+  id              String          @id @default(cuid())
+  userId          String
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountNumber   String          @unique
+  accountType     AccountType     @default(SAVINGS)
+  accountName     String
+  balance         Decimal         @default(0) @db.Decimal(15, 2)
+  currency        String          @default("USD")
+  status          AccountStatus   @default(ACTIVE)
+  interestRate    Decimal?        @db.Decimal(5, 2)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  // Relations
+  transactions    Transaction[]
+  cards           Card[]
+  transfers       Transfer[]
+  transfersReceived Transfer[]     @relation("ReceiverAccountRelation")
+  savingsGoals    SavingsGoal[]
+
+  @@index([userId])
+  @@index([accountNumber])
 }
 
+model SavingsGoal {
+  id              String    @id @default(cuid())
+  accountId       String
+  account         Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  goalName        String
+  targetAmount    Decimal   @db.Decimal(15, 2)
+  currentAmount   Decimal   @default(0) @db.Decimal(15, 2)
+  targetDate      DateTime
+  description     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([accountId])
+}
+
+// ============================================
+// TRANSACTIONS & TRANSFERS
+// ============================================
+
 model Transaction {
-  id          String   @id @default(cuid())
-  account     Account  @relation(fields: [accountId], references: [id])
-  accountId   String
-  amount      Float
-  type        String
-  description String?
-  createdAt   DateTime @default(now())
+  id              String            @id @default(cuid())
+  accountId       String
+  account         Account           @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount          Decimal           @db.Decimal(15, 2)
+  type            TransactionType
+  status          TransactionStatus @default(COMPLETED)
+  description     String?
+  reference       String?
+  merchant        String?
+  category        String?           // SALARY, UTILITIES, ENTERTAINMENT, etc.
+  createdAt       DateTime          @default(now())
+
+  @@index([accountId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Transfer {
+  id                  String            @id @default(cuid())
+  senderAccountId     String
+  senderAccount       Account           @relation(fields: [senderAccountId], references: [id])
+  senderId            String
+  sender              User              @relation(fields: [senderId], references: [id])
+  receiverAccountId   String
+  receiverAccount     Account           @relation("ReceiverAccountRelation", fields: [receiverAccountId], references: [id])
+  receiverId          String
+  receiver            User              @relation("ReceiverRelation", fields: [receiverId], references: [id])
+  amount              Decimal           @db.Decimal(15, 2)
+  purpose             String?
+  status              TransferStatus    @default(PENDING)
+  processedAt         DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@index([senderAccountId])
+  @@index([receiverAccountId])
+  @@index([senderId])
+  @@index([receiverId])
+}
+
+// ============================================
+// CARDS
+// ============================================
+
+model Card {
+  id                String        @id @default(cuid())
+  userId            String
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId         String
+  account           Account       @relation(fields: [accountId], references: [id])
+  cardNumber        String        @unique // encrypted
+  cardType          CardType      @default(DEBIT)
+  cardBrand         CardBrand     @default(VISA)
+  cardholderName    String
+  expiryMonth       Int
+  expiryYear        Int
+  cvv               String        // encrypted
+  status            CardStatus    @default(ACTIVE)
+  dailyLimit        Decimal       @default(5000) @db.Decimal(15, 2)
+  monthlyLimit      Decimal       @default(50000) @db.Decimal(15, 2)
+  isVirtual         Boolean       @default(false)
+  isPrimary         Boolean       @default(false)
+  issuedAt          DateTime      @default(now())
+  activatedAt       DateTime?
+  deactivatedAt     DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([accountId])
+}
+
+// ============================================
+// LOANS
+// ============================================
+
+model Loan {
+  id                String        @id @default(cuid())
+  userId            String
+  accountId         String
+  principalAmount   Decimal       @db.Decimal(15, 2)
+  interestRate      Decimal       @db.Decimal(5, 2)
+  loanTerm          Int           // in months
+  monthlyPayment    Decimal       @db.Decimal(15, 2)
+  status            LoanStatus    @default(ACTIVE)
+  disbursedAt       DateTime?
+  dueDate           DateTime
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+
+model Notification {
+  id              String              @id @default(cuid())
+  userId          String
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type            NotificationType
+  title           String
+  message         String
+  data            Json?
+  isRead          Boolean             @default(false)
+  readAt          DateTime?
+  createdAt       DateTime            @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ============================================
+// FRAUD & SECURITY
+// ============================================
+
+model FraudAlert {
+  id              String            @id @default(cuid())
+  transactionId   String?
+  userId          String
+  alertType       String            // UNUSUAL_ACTIVITY, MULTIPLE_FAILED_ATTEMPTS, LARGE_TRANSACTION
+  severity        AlertSeverity     @default(MEDIUM)
+  description     String
+  status          AlertStatus       @default(OPEN)
+  resolvedAt      DateTime?
+  createdAt       DateTime          @default(now())
+}
+
+// ============================================
+// ACTIVITY LOGS
+// ============================================
+
+model ActivityLog {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action          String
+  resource        String
+  resourceId      String?
+  details         Json?
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime  @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum UserRole {
+  CUSTOMER
+  SUPPORT
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum KYCStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum AccountType {
+  SAVINGS
+  CHECKING
+  INVESTMENT
+  LOAN
+}
+
+enum AccountStatus {
+  ACTIVE
+  FROZEN
+  CLOSED
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  TRANSFER
+  PURCHASE
+  REFUND
+  INTEREST_CREDIT
+  FEE_DEBIT
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REVERSED
+}
+
+enum TransferStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum CardType {
+  DEBIT
+  CREDIT
+}
+
+enum CardBrand {
+  VISA
+  MASTERCARD
+  AMEX
+}
+
+enum CardStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+  EXPIRED
+}
+
+enum LoanStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  DEFAULTED
+}
+
+enum NotificationType {
+  TRANSACTION
+  TRANSFER
+  CARD
+  ACCOUNT
+  SECURITY
+  PROMOTION
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AlertStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  FALSE_POSITIVE
 }
